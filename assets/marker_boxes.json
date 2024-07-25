@@ -1,0 +1,20 @@
+{
+	"size_markers": 0.2,
+	"path_mat": "/assets/material/aruco_5X5_100_bordered.png",
+	"size_tags": 9,
+	"markers": [
+		[61,  ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2 - WIDTH_BOX / 2 + 0.01", "DIST_PILLAR_Y * 1", 0.53], [0, 0, 90]],
+		[62,  ["DIST_PILLAR_X * 0.5 + SIZE_PILLAR / 2 - WIDTH_BOX / 2 + 0.01", "DIST_PILLAR_Y * 1.5", 0.53], [0, 0, 90]],
+		[63,  ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2 - WIDTH_BOX / 2 + 0.01", "DIST_PILLAR_Y * 2", 0.53], [0, 0, 90]],
+		[64,  ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2 - WIDTH_BOX / 2 + 0.01", "DIST_PILLAR_Y * 1", 0.53], [0, 0, 90]],
+		[65,  ["DIST_PILLAR_X * 0.5 + SIZE_PILLAR / 2 - WIDTH_BOX / 2 + 0.01", "DIST_PILLAR_Y * 1.5", 0.53], [0, 0, 90]],
+		[66,  ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2 - WIDTH_BOX / 2 + 0.01", "DIST_PILLAR_Y * 2", 0.53], [0, 0, 90]],
+
+		[71,  ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2 + WIDTH_BOX / 2 - 0.01", "DIST_PILLAR_Y * 2", 0.53], [0, 0, 270]],
+		[72,  ["DIST_PILLAR_X * 4.5 + SIZE_PILLAR / 2 + WIDTH_BOX / 2 - 0.01", "DIST_PILLAR_Y * 1.5", 0.53], [0, 0, 270]],
+		[73,  ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2 + WIDTH_BOX / 2 - 0.01", "DIST_PILLAR_Y * 1", 0.53], [0, 0, 270]],
+		[74,  ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2 + WIDTH_BOX / 2 - 0.01", "DIST_PILLAR_Y * 2", 0.53], [0, 0, 270]],
+		[75,  ["DIST_PILLAR_X * 4.5 + SIZE_PILLAR / 2 + WIDTH_BOX / 2 - 0.01", "DIST_PILLAR_Y * 1.5", 0.53], [0, 0, 270]],
+		[76,  ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2 + WIDTH_BOX / 2 - 0.01", "DIST_PILLAR_Y * 1", 0.53], [0, 0, 270]]
+	]
+}

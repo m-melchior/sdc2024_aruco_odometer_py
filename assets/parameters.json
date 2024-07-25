@@ -1,0 +1,15 @@
+{
+	"WIDTH_ARENA": 18,
+	"LENGTH_ARENA": 33,
+
+	"HEIGHT_WALL": 8,
+
+	"SIZE_PILLAR": 0.5,
+
+	"DIST_PILLAR_X": 6.5,
+	"DIST_PILLAR_Y": 6,
+
+	"WIDTH_BOX": 0.4,
+	"LENGTH_BOX": 0.6,
+	"HEIGHT_BOX": 0.33
+}

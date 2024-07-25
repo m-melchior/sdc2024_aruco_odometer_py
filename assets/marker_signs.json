@@ -1,0 +1,37 @@
+{
+	"size_markers": 0.5,
+	"path_mat": "/assets/material/aruco_4X4_50_bordered.png",
+	"size_tags": 8,
+
+	"markers": [
+		[0,  ["LENGTH_ARENA / 2", "WIDTH_ARENA - 0.1", 0.25], [90.0, 0.0, 0.0]],
+
+		[1,  ["DIST_PILLAR_X * 0 + SIZE_PILLAR + 0.01", "DIST_PILLAR_Y * 1", 2], [90.0, 0.0, 90.0]],
+		[2,  ["DIST_PILLAR_X * 0 + SIZE_PILLAR + 0.01", "DIST_PILLAR_Y * 1", 4], [90.0, 0.0, 90.0]],
+		[3,  ["DIST_PILLAR_X * 0 + SIZE_PILLAR + 0.01", "DIST_PILLAR_Y * 2", 2], [90.0, 0.0, 90.0]],
+		[4,  ["DIST_PILLAR_X * 0 + SIZE_PILLAR + 0.01", "DIST_PILLAR_Y * 2", 4], [90.0, 0.0, 90.0]],
+
+		[5,  ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 2], [90.0, 0.0, 0.0]],
+		[6,  ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 4], [90.0, 0.0, 0.0]],
+		[7,  ["DIST_PILLAR_X * 2 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 2], [90.0, 0.0, 0.0]],
+		[8,  ["DIST_PILLAR_X * 2 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 4], [90.0, 0.0, 0.0]],
+		[9,  ["DIST_PILLAR_X * 3 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 2], [90.0, 0.0, 0.0]],
+		[10, ["DIST_PILLAR_X * 3 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 4], [90.0, 0.0, 0.0]],
+		[11, ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 2], [90.0, 0.0, 0.0]],
+		[12, ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2", "WIDTH_ARENA - SIZE_PILLAR - 0.01", 4], [90.0, 0.0, 0.0]],
+
+		[13, ["LENGTH_ARENA - SIZE_PILLAR - 0.01", "DIST_PILLAR_Y * 2", 2], [90.0, 0.0, 270.0]],
+		[14, ["LENGTH_ARENA - SIZE_PILLAR - 0.01", "DIST_PILLAR_Y * 2", 4], [90.0, 0.0, 270.0]],
+		[15, ["LENGTH_ARENA - SIZE_PILLAR - 0.01", "DIST_PILLAR_Y * 1", 2], [90.0, 0.0, 270.0]],
+		[16, ["LENGTH_ARENA - SIZE_PILLAR - 0.01", "DIST_PILLAR_Y * 1", 4], [90.0, 0.0, 270.0]],
+
+		[17, ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 2], [90.0, 0.0, 180.0]],
+		[18, ["DIST_PILLAR_X * 4 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 4], [90.0, 0.0, 180.0]],
+		[19, ["DIST_PILLAR_X * 3 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 2], [90.0, 0.0, 180.0]],
+		[20, ["DIST_PILLAR_X * 3 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 4], [90.0, 0.0, 180.0]],
+		[21, ["DIST_PILLAR_X * 2 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 2], [90.0, 0.0, 180.0]],
+		[22, ["DIST_PILLAR_X * 2 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 4], [90.0, 0.0, 180.0]],
+		[23, ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 2], [90.0, 0.0, 180.0]],
+		[24, ["DIST_PILLAR_X * 1 + SIZE_PILLAR / 2", "DIST_PILLAR_Y * 0 + 0.01", 4], [90.0, 0.0, 180.0]]
+	]
+}
