@@ -37,6 +37,8 @@ TGT_IDS_RED = {64, 65, 66, 74, 75, 76}
 SIZE_LOS = 100
 LIFETIME_LOS_S = 3
 
+FPS = 30
+
 class RollingWindowVec:
     def __init__(self, window_size=10):
         self.items = deque(maxlen=window_size)
@@ -141,6 +143,21 @@ def get_markers(type, path_markerdata):
 
 	return ret, size_markers
 
+def estimatePoseSingleMarkers(corners, marker_size, mtx, distortion):
+    marker_points = numpy.array([[-marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, -marker_size / 2, 0],
+                              [-marker_size / 2, -marker_size / 2, 0]], dtype=numpy.float32)
+    trash = []
+    rvecs = []
+    tvecs = []
+    for c in corners:
+        nada, R, t = cv2.solvePnP(marker_points, c, mtx, distortion, False, cv2.SOLVEPNP_IPPE_SQUARE)
+        rvecs.append(R)
+        tvecs.append(t)
+        trash.append(nada)
+    return rvecs, tvecs, trash
+
 # ******************************************
 class ArucoDetector(Node):
 	# ******************************************
@@ -152,10 +169,10 @@ class ArucoDetector(Node):
 		self.cam_matrix = None
 		self.cam_distortion = None
 
-		self.rolling_window_vec_r = None
-		self.rolling_window_vec_t = None
+		# self.rolling_window_vec_r = None
+		# self.rolling_window_vec_t = None
 
-		self.rolling_window_vec_pos = None
+		# self.rolling_window_vec_pos = None
 
 		self.markers_nav = {}
 		self.markers_nav_size = 0
@@ -163,39 +180,34 @@ class ArucoDetector(Node):
 		self.markers_tgt_size = 0
 
 		self.subscriber_cam = None
+
 		self.publisher_image_aruco = None
+
 		self.publisher_rviz_markers_nav = None
 		self.publisher_rviz_markers_tgt = None
+		
+		self.publisher_rviz_los = None
+
 		self.publisher_rviz_position = None
 
 		self.publisher_rviz_camera = None
-
-		self.publisher_rviz_pose = None
 
 		self.cv_bridge = None
 
 		self.aruco_dict_nav = None
 		self.aruco_dict_tgt = None
+
 		self.aruco_detector_parameters = None
 
-		self.fps = 0
-		self.frame_count = 0
-		self.time_start = None
-
-		self.fig = None
-		self.ax = None
-
-		self.avg_deg = None
-		self.avg_ry = None
-
-		self.tfbroadcaster = TransformBroadcaster(self)
+		self.aruco_detector_nav = None
+		self.aruco_detector_tgt = None
 
 	# ******************************************
 	def start(self):
-		self.rolling_window_vec_r = RollingWindowVec(20)
-		self.rolling_window_vec_t = RollingWindowVec(20)
+		rolling_window_vec_r = RollingWindowVec(20)
+		rolling_window_vec_t = RollingWindowVec(20)
 
-		self.rolling_window_vec_pos = RollingWindowVec(20)
+		rolling_window_vec_pos = RollingWindowVec(20)
 
 		self.markers_nav, self.markers_nav_size = get_markers("sign", PATH_MARKER_SIGNS)
 		self.markers_tgt, self.markers_tgt_size = get_markers("tgt", PATH_MARKER_BOXES)
@@ -211,6 +223,7 @@ class ArucoDetector(Node):
 		# print(f"self.cam_distortion: {self.cam_distortion}")
 
 		self.publisher_image_aruco = self.create_publisher(Image, '/image_aruco', 10)
+
 		self.publisher_rviz_markers_nav = self.create_publisher(MarkerArray, 'rviz_markers_nav', 10)
 		self.publisher_rviz_markers_tgt = self.create_publisher(MarkerArray, 'rviz_markers_tgt', 10)
 
@@ -220,64 +233,89 @@ class ArucoDetector(Node):
 
 		self.publisher_rviz_camera = self.create_publisher(Marker, 'rviz_camera', 10)
 
-		self.publisher_rviz_pose = self.create_publisher(PoseStamped, 'rviz_pose', 10)
-
 		self.cv_bridge = CvBridge()
 
-		self.aruco_dict_nav = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
-		self.aruco_dict_tgt = aruco.getPredefinedDictionary(aruco.DICT_5X5_100)
-		self.aruco_detector_parameters = aruco.DetectorParameters()
+		# for documentation sake
+		# if version.parse(cv2.__version__) >= version.parse("4.7.0"):
+		# 	dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_250)
+		# 	detectorParams = cv2.aruco.DetectorParameters()
+		# 	detector = cv2.aruco.ArucoDetector(dictionary, detectorParams)
+		# 	marker_corners, marker_ids, rejected_candidates = detector.detectMarkers(image)
+		# else:
+		# 	dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_250)
+		# 	detectorParams = cv2.aruco.DetectorParameters_create()
+		# 	marker_corners, marker_ids, rejected_candidates = cv2.aruco.detectMarkers(image, dictionary, parameters=detectorParams
+		# )
 
-		self.time_start = time.time()
+		aruco_dict_nav = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
+		aruco_detector_parameters_nav = aruco.DetectorParameters()
+		self.aruco_detector_nav = cv2.aruco.ArucoDetector(aruco_dict_nav, aruco_detector_parameters_nav)
+
+		aruco_dict_tgt = aruco.getPredefinedDictionary(aruco.DICT_5X5_100)
+		aruco_detector_parameters_tgt = aruco.DetectorParameters()
+		self.aruco_detector_tgt = cv2.aruco.ArucoDetector(aruco_dict_tgt, aruco_detector_parameters_tgt)
+
 		self.publish_markers_nav(None)
 		self.publish_markers_tgt({64, 65, 66, 71, 72, 73})
 
-		self.avg_deg = deque(maxlen = 10)
-		self.avg_ry = deque(maxlen = 10)
-
-
 		pipeline = dai.Pipeline()
 
-		camRGB = pipeline.create(dai.node.ColorCamera)
-		xoutVideo = pipeline.create(dai.node.XLinkOut)
+		# camRGB = pipeline.create(dai.node.ColorCamera)
+		cam_mono_left = pipeline.create(dai.node.MonoCamera)
 
+		cam_mono_left.setFps(FPS)
+
+		xoutVideo = pipeline.create(dai.node.XLinkOut)
 		xoutVideo.setStreamName("video")
 
 		# camRGB.setBoardSocket(dai.CameraBoardSocket.CAM_A)
-		camRGB.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
-		camRGB.setVideoSize(1920, 1080)
+		# camRGB.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
+		# camRGB.setVideoSize(1920, 1080)
+		cam_mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_720_P)
+		cam_mono_left.setCamera("left")
 
 		xoutVideo.input.setBlocking(False)
 		xoutVideo.input.setQueueSize(1)
 
-		camRGB.video.link(xoutVideo.input)
+		# camRGB.video.link(xoutVideo.input)
+		cam_mono_left.out.link(xoutVideo.input)
 
 		with dai.Device(pipeline) as device:
 
 			video = device.getOutputQueue(name="video", maxSize=1, blocking=False)
 
+			fps = 0
+			frame_count = 0
+			time_start = time.time()
+			t_proc = 0
+
 			while(True):
 				videoIn = video.get()
 
-				self.frame_count += 1
+				frame_count += 1
 				time_now = time.time()
-				time_delta = time_now - self.time_start
+				time_delta = time_now - time_start
 
 				if time_delta >= 1.0:
-					self.fps = self.frame_count / time_delta
-					self.frame_count = 0
-					self.time_start = time_now
-					# self.logger.info(f"fps: {self.fps}")
+					fps = frame_count / time_delta
+					frame_count = 0
+					time_start = time_now
+					self.logger.info(f"fps, t_proc: {fps}, {t_proc}")
 
 				# NAV Markers
 				cv_image_raw = videoIn.getCvFrame()
-				cv_image_gray = cv2.cvtColor(cv_image_raw, cv2.COLOR_BGR2GRAY)
 
-				marker_corners_nav, marker_ids_nav, rejected = aruco.detectMarkers(cv_image_gray, self.aruco_dict_nav, parameters = self.aruco_detector_parameters)
+				# cv_image_raw = cv2.flip(cv_image_raw, 0)
+				# cv_image_raw = cv2.flip(cv_image_raw, 1)
+
+				# cv_image_raw = cv2.cvtColor(cv_image_raw, cv2.COLOR_BGR2GRAY)
+				cv_image_gray = cv2.rotate(cv_image_raw, cv2.ROTATE_180)
+
+				marker_corners_nav, marker_ids_nav, rejected = self.aruco_detector_nav.detectMarkers(cv_image_gray)
 				# print(f"marker_corners_nav: {marker_corners_nav}")
 
 				if marker_ids_nav is not None:
-					cv_image_raw = aruco.drawDetectedMarkers(cv_image_raw, marker_corners_nav, marker_ids_nav)
+					cv_image_gray = aruco.drawDetectedMarkers(cv_image_gray, marker_corners_nav, marker_ids_nav)
 
 					marker_ids = set()
 					for index, marker_id in enumerate(marker_ids_nav):
@@ -288,32 +326,34 @@ class ArucoDetector(Node):
 						id_aruco = int(marker_id[0])
 						marker_ids.add(id_aruco)
 
-						rotations, translations, _ = aruco.estimatePoseSingleMarkers(marker_corners_nav, self.markers_nav_size, self.cam_matrix, self.cam_distortion)
+						rotations, translations, _ = estimatePoseSingleMarkers(marker_corners_nav, self.markers_nav_size, self.cam_matrix, self.cam_distortion)
 						rotation = rotations[index].flatten()
 						translation = translations[index].flatten()
 
-						self.rolling_window_vec_r.add_element(numpy.array(rotation))
-						self.rolling_window_vec_t.add_element(numpy.array(translation))
+						rolling_window_vec_r.add_element(numpy.array(rotation))
+						rolling_window_vec_t.add_element(numpy.array(translation))
 
 						marker_position = numpy.array(self.markers_nav[id_aruco]["position"])
 						marker_orientation = self.markers_nav[id_aruco]["orientation"]
 
-						rotation_matrix = cv2.Rodrigues(self.rolling_window_vec_r.get_median())[0]
-						translation_vector = self.rolling_window_vec_t.get_median().reshape(3, 1)
+						rotation_matrix = cv2.Rodrigues(rolling_window_vec_r.get_median())[0]
+
+						rolling_window_vec_t_median = rolling_window_vec_t.get_median().reshape(3, 1)
+
 						inverse_rotation_matrix = rotation_matrix.T
-						inverse_translation_vector = -inverse_rotation_matrix @ translation_vector
+						inverse_translation_vector = -inverse_rotation_matrix @ rolling_window_vec_t_median
 						inverse_translation_vector = inverse_translation_vector.flatten()
 
 						pos_rot = rotate(inverse_translation_vector, marker_orientation)
 						pos_rot_trans = pos_rot + marker_position
 
-						self.rolling_window_vec_pos.add_element(pos_rot_trans)
+						rolling_window_vec_pos.add_element(pos_rot_trans)
 
-						rolling_window_vec_pos = self.rolling_window_vec_pos.get_median()
+						rolling_window_vec_pos_median = rolling_window_vec_pos.get_median()
+						print(f"rolling_window_vec_pos_median: {rolling_window_vec_pos_median}")
 
-
-						sst_rotation = SST_Rotation.from_matrix(inverse_rotation_matrix)
-						sst_rotation_quat = sst_rotation.as_quat()
+						# sst_rotation = SST_Rotation.from_matrix(inverse_rotation_matrix)
+						# sst_rotation_quat = sst_rotation.as_quat()
 
 						marker = Marker()
 						marker.header.frame_id = "map"
@@ -323,9 +363,9 @@ class ArucoDetector(Node):
 						marker.type = Marker.SPHERE
 						marker.action = Marker.ADD
 
-						marker.pose.position.x = rolling_window_vec_pos[0]
-						marker.pose.position.y = rolling_window_vec_pos[1]
-						marker.pose.position.z = rolling_window_vec_pos[2]
+						marker.pose.position.x = rolling_window_vec_pos_median[0]
+						marker.pose.position.y = rolling_window_vec_pos_median[1]
+						marker.pose.position.z = rolling_window_vec_pos_median[2]
 
 						marker.scale.x = 0.3
 						marker.scale.y = 0.3
@@ -346,18 +386,18 @@ class ArucoDetector(Node):
 						# print(f"angles: {angles}")
 						# yaw_angle = angles[1]
 
-						self.publish_los(id_aruco, angles[1])
+						# self.publish_los(id_aruco, angles[1])
 
-						cv2.drawFrameAxes(cv_image_raw, self.cam_matrix, self.cam_distortion, rotations[index], translations[index], 0.1)
+						cv2.drawFrameAxes(cv_image_gray, self.cam_matrix, self.cam_distortion, rotations[index], translations[index], 0.1)
 
 					self.publish_markers_nav(marker_ids)
 
 
 				# Target Markers
-				marker_corners_tgt, marker_ids_tgt, rejected = aruco.detectMarkers(cv_image_gray, self.aruco_dict_tgt, parameters = self.aruco_detector_parameters)
+				marker_corners_tgt, marker_ids_tgt, rejected = self.aruco_detector_tgt.detectMarkers(cv_image_gray)
 				if marker_ids_tgt is not None:
 					marker_ids = set()
-					cv_image_raw = aruco.drawDetectedMarkers(cv_image_raw, marker_corners_tgt, marker_ids_tgt)
+					# cv_image_gray = aruco.drawDetectedMarkers(cv_image_gray, marker_corners_tgt, marker_ids_tgt)
 
 					for marker_id in range(len(marker_ids_tgt)):
 						marker_ids.add(marker_ids_tgt[marker_id][0])
@@ -367,26 +407,27 @@ class ArucoDetector(Node):
 						y = [corner[1] for corner in corners]
 						p_center = (int(sum(x) / len(corners)), int(sum(y) / len(corners)))
 
-						cv2.circle(cv_image_raw, p_center, 8, (0, 0, 255), -1)
+						# cv2.circle(cv_image_gray, p_center, 8, (0, 0, 255), -1)
 
-						rotations, translations, markerPoints = aruco.estimatePoseSingleMarkers(marker_corners_tgt[marker_id], self.markers_tgt_size, self.cam_matrix, self.cam_distortion)
-						(rotations - translations).any()
+						rotations, translations, _ = estimatePoseSingleMarkers(marker_corners_tgt[marker_id], self.markers_tgt_size, self.cam_matrix, self.cam_distortion)
+						# (rotations - translations).any()
 
 					# print(f"marker_ids: {marker_ids}")
 					self.publish_markers_tgt(marker_ids)
 
 				# Text and markers_nav on the image
 				t_proc = time.time() - time_now		
-				cv2.putText(cv_image_raw, f"FPS: {self.fps:.2f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
-				cv2.putText(cv_image_raw, f"t_proc: {t_proc:.4f}", (10, 60), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
+				cv2.putText(cv_image_gray, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
+				cv2.putText(cv_image_gray, f"t_proc: {t_proc:.4f}", (10, 60), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
 				# does not work in docker, thus the publishing
-				# cv2.imshow("ArUco", cv_image_raw)
-
-				cv2.imshow("video", cv_image_raw)
+				# cv2.imshow("ArUco Odometer", cv_image_gray)
 
 				if cv2.waitKey(1) == ord('q'):
 					break
+
+				msg_image_processed = self.cv_bridge.cv2_to_imgmsg(cv_image_gray, "mono8")
+				self.publisher_image_aruco.publish(msg_image_processed)					
 
 	# ******************************************
 	def publish_markers_nav(self, marker_ids_in):

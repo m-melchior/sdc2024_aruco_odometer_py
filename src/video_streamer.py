@@ -23,9 +23,9 @@ class ImageSubscriber(Node):
 		self.bridge = CvBridge()
 		self.lock = Lock()
 
-		# self.fps = 0
-		# self.frame_count = 0
-		# self.time_start = time.time()
+		self.fps = 0
+		self.frame_count = 0
+		self.time_start = time.time()
 		
 		self.subscription = self.create_subscription(
 			Image,
@@ -35,15 +35,15 @@ class ImageSubscriber(Node):
 
 	# ******************************************
 	def callback_an_image_processed(self, msg):
-		# self.frame_count += 1
-		# time_now = time.time()
-		# time_delta = time_now - self.time_start
+		self.frame_count += 1
+		time_now = time.time()
+		time_delta = time_now - self.time_start
 
-		# if time_delta >= 1.0:
-		# 	self.fps = self.frame_count / time_delta
-		# 	self.frame_count = 0
-		# 	self.time_start = time_now
-		# 	self.get_logger().info(f"callback_an_image_processed fps: {self.fps}")
+		if time_delta >= 1.0:
+			self.fps = self.frame_count / time_delta
+			self.frame_count = 0
+			self.time_start = time_now
+			self.get_logger().info(f"callback_an_image_processed fps: {self.fps}")
 			
 		with self.lock:
 			self.image_aruco = msg
