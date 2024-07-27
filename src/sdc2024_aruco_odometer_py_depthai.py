@@ -169,9 +169,6 @@ class ArucoDetector(Node):
 
 		self.logger = self.get_logger()
 
-		self.cam_matrix = None
-		self.cam_distortion = None
-
 		self.position = None
 		self.quad = None
 
@@ -185,34 +182,8 @@ class ArucoDetector(Node):
 		self.markers_tgt = {}
 		self.markers_tgt_size = 0
 
-		self.subscriber_cam = None
-
-		self.publisher_image_aruco = None
-
-		self.publisher_rviz_markers_nav = None
-		self.publisher_rviz_markers_tgt = None
-		
-		self.publisher_rviz_los = None
-
-		self.publisher_rviz_position = None
-
-		self.publisher_rviz_camera = None
-
-		self.publisher_vehicle_visual_odometry	= None
-
-		self.timer_odometry = None
-
-		self.cv_bridge = None
-
-		self.aruco_dict_nav = None
-		self.aruco_dict_tgt = None
-
-		self.aruco_detector_parameters = None
-
 		self.thread_image = None
 
-	# ******************************************
-	def start(self):
 		qos_profile = QoSProfile(
 			reliability = ReliabilityPolicy.BEST_EFFORT,
 			durability = DurabilityPolicy.TRANSIENT_LOCAL,
@@ -366,20 +337,29 @@ class ArucoDetector(Node):
 						rolling_window_vec_t_median = rolling_window_vec_t.get_median().reshape(3, 1)
 
 						inverse_rotation_matrix = rotation_matrix.T
+						# print(f"inverse_rotation_matrix: {inverse_rotation_matrix}")
 						inverse_translation_vector = -inverse_rotation_matrix @ rolling_window_vec_t_median
 						inverse_translation_vector = inverse_translation_vector.flatten()
 
-						pos_rot = rotate(inverse_translation_vector, marker_orientation)
-						pos_rot_trans = pos_rot + marker_position
+						pos_rotated = rotate(inverse_translation_vector, marker_orientation)
+						pos_rotated_transformed = pos_rotated + marker_position
 
-						rolling_window_vec_pos.add_element(pos_rot_trans)
+						rolling_window_vec_pos.add_element(pos_rotated_transformed)
 
 						self.position = rolling_window_vec_pos.get_median()
 						# print(f"self.position: {self.position}")
 
 						sst_rotation = SST_Rotation.from_matrix(inverse_rotation_matrix)
+						# print(f"sst_rotation: {sst_rotation}")
+						euler_angles = sst_rotation.as_euler('xyz', degrees=True)
+						# print(f"euler_angles: {euler_angles}")
 						self.quad = sst_rotation.as_quat()
 						# print(f"self.quad: {self.quad}")
+
+
+
+
+
 
 						# marker = Marker()
 						# marker.header.frame_id = "map"
@@ -469,11 +449,10 @@ class ArucoDetector(Node):
 
 		msg.pose_frame = VehicleOdometry.POSE_FRAME_NED
 
-		msg.position = numpy.array(self.position, dtype = numpy.float32)
-		# print(f"msg.position: {msg.position}")
+		msg.position = numpy.array([self.position[1], self.position[0], -self.position[2]], dtype = numpy.float32)
 
-		# msg.q = numpy.array([float('nan'), float('nan'), float('nan'), float('nan')], dtype = numpy.float32)
-		msg.q = numpy.array([self.quad[0], self.quad[1], self.quad[2], self.quad[3]], dtype = numpy.float32)
+		msg.q = numpy.array([float('nan'), float('nan'), float('nan'), float('nan')], dtype = numpy.float32)
+		# msg.q = numpy.array([self.quad[0], self.quad[1], self.quad[2], self.quad[3]], dtype = numpy.float32)
 
 		msg.velocity = [float('nan'), float('nan'), float('nan')]
 
@@ -676,7 +655,6 @@ def main(args=None):
 	rclpy.init(args=args)
 
 	aruco_detector = ArucoDetector()
-	aruco_detector.start()
 
 	rclpy.spin(aruco_detector)
 
