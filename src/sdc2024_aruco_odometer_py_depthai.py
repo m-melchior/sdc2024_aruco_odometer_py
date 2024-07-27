@@ -10,10 +10,13 @@ import math
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy
+from px4_msgs.msg import VehicleOdometry
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from scipy.spatial.transform import Rotation as SST_Rotation
 from sensor_msgs.msg import Image
+import threading
 import time
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -169,6 +172,9 @@ class ArucoDetector(Node):
 		self.cam_matrix = None
 		self.cam_distortion = None
 
+		self.position = None
+		self.quad = None
+
 		# self.rolling_window_vec_r = None
 		# self.rolling_window_vec_t = None
 
@@ -192,6 +198,10 @@ class ArucoDetector(Node):
 
 		self.publisher_rviz_camera = None
 
+		self.publisher_vehicle_visual_odometry	= None
+
+		self.timer_odometry = None
+
 		self.cv_bridge = None
 
 		self.aruco_dict_nav = None
@@ -199,15 +209,31 @@ class ArucoDetector(Node):
 
 		self.aruco_detector_parameters = None
 
-		self.aruco_detector_nav = None
-		self.aruco_detector_tgt = None
+		self.thread_image = None
 
 	# ******************************************
 	def start(self):
-		rolling_window_vec_r = RollingWindowVec(20)
-		rolling_window_vec_t = RollingWindowVec(20)
+		qos_profile = QoSProfile(
+			reliability = ReliabilityPolicy.BEST_EFFORT,
+			durability = DurabilityPolicy.TRANSIENT_LOCAL,
+			history = HistoryPolicy.KEEP_LAST,
+			depth = 1
+		)
 
-		rolling_window_vec_pos = RollingWindowVec(20)
+		self.publisher_image_aruco = self.create_publisher(Image, '/image_aruco', 10)
+
+		self.publisher_rviz_markers_nav = self.create_publisher(MarkerArray, 'rviz_markers_nav', 10)
+		self.publisher_rviz_markers_tgt = self.create_publisher(MarkerArray, 'rviz_markers_tgt', 10)
+
+		self.publisher_rviz_los = self.create_publisher(Marker, 'rviz_los', 10)
+
+		self.publisher_rviz_position = self.create_publisher(Marker, 'rviz_position', 10)
+
+		self.publisher_rviz_camera = self.create_publisher(Marker, 'rviz_camera', 10)
+
+		self.publisher_vehicle_visual_odometry	= self.create_publisher(VehicleOdometry, '/fmu/in/vehicle_visual_odometry', qos_profile)
+
+		self.cv_bridge = CvBridge()
 
 		self.markers_nav, self.markers_nav_size = get_markers("sign", PATH_MARKER_SIGNS)
 		self.markers_tgt, self.markers_tgt_size = get_markers("tgt", PATH_MARKER_BOXES)
@@ -222,19 +248,18 @@ class ArucoDetector(Node):
 		# print(f"self.cam_matrix: {self.cam_matrix}")
 		# print(f"self.cam_distortion: {self.cam_distortion}")
 
-		self.publisher_image_aruco = self.create_publisher(Image, '/image_aruco', 10)
+		self.timer_odometry = self.create_timer(1 / 30, self.publish_vehicle_odometry)
 
-		self.publisher_rviz_markers_nav = self.create_publisher(MarkerArray, 'rviz_markers_nav', 10)
-		self.publisher_rviz_markers_tgt = self.create_publisher(MarkerArray, 'rviz_markers_tgt', 10)
+		self.thread_image = threading.Thread(target = self.fnc_thread_image)
+		self.thread_image.start()
 
-		self.publisher_rviz_los = self.create_publisher(Marker, 'rviz_los', 10)
+	# ******************************************
+	def fnc_thread_image(self):
+		rolling_window_vec_r = RollingWindowVec(20)
+		rolling_window_vec_t = RollingWindowVec(20)
 
-		self.publisher_rviz_position = self.create_publisher(Marker, 'rviz_position', 10)
-
-		self.publisher_rviz_camera = self.create_publisher(Marker, 'rviz_camera', 10)
-
-		self.cv_bridge = CvBridge()
-
+		rolling_window_vec_pos = RollingWindowVec(20)
+	
 		# for documentation sake
 		# if version.parse(cv2.__version__) >= version.parse("4.7.0"):
 		# 	dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_250)
@@ -249,14 +274,14 @@ class ArucoDetector(Node):
 
 		aruco_dict_nav = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 		aruco_detector_parameters_nav = aruco.DetectorParameters()
-		self.aruco_detector_nav = cv2.aruco.ArucoDetector(aruco_dict_nav, aruco_detector_parameters_nav)
+		aruco_detector_nav = cv2.aruco.ArucoDetector(aruco_dict_nav, aruco_detector_parameters_nav)
 
 		aruco_dict_tgt = aruco.getPredefinedDictionary(aruco.DICT_5X5_100)
 		aruco_detector_parameters_tgt = aruco.DetectorParameters()
-		self.aruco_detector_tgt = cv2.aruco.ArucoDetector(aruco_dict_tgt, aruco_detector_parameters_tgt)
+		aruco_detector_tgt = cv2.aruco.ArucoDetector(aruco_dict_tgt, aruco_detector_parameters_tgt)
 
-		self.publish_markers_nav(None)
-		self.publish_markers_tgt({64, 65, 66, 71, 72, 73})
+		# self.publish_markers_nav(None)
+		# self.publish_markers_tgt({64, 65, 66, 71, 72, 73})
 
 		pipeline = dai.Pipeline()
 
@@ -311,7 +336,7 @@ class ArucoDetector(Node):
 				# cv_image_raw = cv2.cvtColor(cv_image_raw, cv2.COLOR_BGR2GRAY)
 				cv_image_gray = cv2.rotate(cv_image_raw, cv2.ROTATE_180)
 
-				marker_corners_nav, marker_ids_nav, rejected = self.aruco_detector_nav.detectMarkers(cv_image_gray)
+				marker_corners_nav, marker_ids_nav, rejected = aruco_detector_nav.detectMarkers(cv_image_gray)
 				# print(f"marker_corners_nav: {marker_corners_nav}")
 
 				if marker_ids_nav is not None:
@@ -349,38 +374,39 @@ class ArucoDetector(Node):
 
 						rolling_window_vec_pos.add_element(pos_rot_trans)
 
-						rolling_window_vec_pos_median = rolling_window_vec_pos.get_median()
-						print(f"rolling_window_vec_pos_median: {rolling_window_vec_pos_median}")
+						self.position = rolling_window_vec_pos.get_median()
+						# print(f"self.position: {self.position}")
 
-						# sst_rotation = SST_Rotation.from_matrix(inverse_rotation_matrix)
-						# sst_rotation_quat = sst_rotation.as_quat()
+						sst_rotation = SST_Rotation.from_matrix(inverse_rotation_matrix)
+						self.quad = sst_rotation.as_quat()
+						# print(f"self.quad: {self.quad}")
 
-						marker = Marker()
-						marker.header.frame_id = "map"
-						marker.header.stamp = self.get_clock().now().to_msg()
-						marker.ns = "cam"
-						marker.id = 0
-						marker.type = Marker.SPHERE
-						marker.action = Marker.ADD
+						# marker = Marker()
+						# marker.header.frame_id = "map"
+						# marker.header.stamp = self.get_clock().now().to_msg()
+						# marker.ns = "cam"
+						# marker.id = 0
+						# marker.type = Marker.SPHERE
+						# marker.action = Marker.ADD
 
-						marker.pose.position.x = rolling_window_vec_pos_median[0]
-						marker.pose.position.y = rolling_window_vec_pos_median[1]
-						marker.pose.position.z = rolling_window_vec_pos_median[2]
+						# marker.pose.position.x = rolling_window_vec_pos_median[0]
+						# marker.pose.position.y = rolling_window_vec_pos_median[1]
+						# marker.pose.position.z = rolling_window_vec_pos_median[2]
 
-						marker.scale.x = 0.3
-						marker.scale.y = 0.3
-						marker.scale.z = 0.3
+						# marker.scale.x = 0.3
+						# marker.scale.y = 0.3
+						# marker.scale.z = 0.3
 
-						marker.color.a = 1.0
-						marker.color.r = 0.0
-						marker.color.g = 1.0
-						marker.color.b = 0.0
+						# marker.color.a = 1.0
+						# marker.color.r = 0.0
+						# marker.color.g = 1.0
+						# marker.color.b = 0.0
 
-						self.publisher_rviz_camera.publish(marker)
+						# self.publisher_rviz_camera.publish(marker)
 						
 						# start_time = time.time()
-						rotation_matrix, _ = cv2.Rodrigues(rotation)
-						angles, mtxR, mtxQ, Qx, Qy, Qz = cv2.RQDecomp3x3(rotation_matrix)
+						# rotation_matrix, _ = cv2.Rodrigues(rotation)
+						# angles, mtxR, mtxQ, Qx, Qy, Qz = cv2.RQDecomp3x3(rotation_matrix)
 						# elapsed_time = time.time() - start_time
 						# print(f"elapsed_time: {elapsed_time:.6f}")
 						# print(f"angles: {angles}")
@@ -390,35 +416,35 @@ class ArucoDetector(Node):
 
 						cv2.drawFrameAxes(cv_image_gray, self.cam_matrix, self.cam_distortion, rotations[index], translations[index], 0.1)
 
-					self.publish_markers_nav(marker_ids)
+					# self.publish_markers_nav(marker_ids)
 
 
-				# Target Markers
-				marker_corners_tgt, marker_ids_tgt, rejected = self.aruco_detector_tgt.detectMarkers(cv_image_gray)
-				if marker_ids_tgt is not None:
-					marker_ids = set()
-					# cv_image_gray = aruco.drawDetectedMarkers(cv_image_gray, marker_corners_tgt, marker_ids_tgt)
+				# # Target Markers
+				# marker_corners_tgt, marker_ids_tgt, rejected = aruco_detector_tgt.detectMarkers(cv_image_gray)
+				# if marker_ids_tgt is not None:
+				# 	marker_ids = set()
+				# 	# cv_image_gray = aruco.drawDetectedMarkers(cv_image_gray, marker_corners_tgt, marker_ids_tgt)
 
-					for marker_id in range(len(marker_ids_tgt)):
-						marker_ids.add(marker_ids_tgt[marker_id][0])
-						corners = marker_corners_tgt[marker_id].reshape((4, 2))
+				# 	for marker_id in range(len(marker_ids_tgt)):
+				# 		marker_ids.add(marker_ids_tgt[marker_id][0])
+				# 		corners = marker_corners_tgt[marker_id].reshape((4, 2))
 
-						x = [corner[0] for corner in corners]
-						y = [corner[1] for corner in corners]
-						p_center = (int(sum(x) / len(corners)), int(sum(y) / len(corners)))
+				# 		x = [corner[0] for corner in corners]
+				# 		y = [corner[1] for corner in corners]
+				# 		p_center = (int(sum(x) / len(corners)), int(sum(y) / len(corners)))
 
-						# cv2.circle(cv_image_gray, p_center, 8, (0, 0, 255), -1)
+				# 		# cv2.circle(cv_image_gray, p_center, 8, (0, 0, 255), -1)
 
-						rotations, translations, _ = estimatePoseSingleMarkers(marker_corners_tgt[marker_id], self.markers_tgt_size, self.cam_matrix, self.cam_distortion)
-						# (rotations - translations).any()
+				# 		rotations, translations, _ = estimatePoseSingleMarkers(marker_corners_tgt[marker_id], self.markers_tgt_size, self.cam_matrix, self.cam_distortion)
+				# 		# (rotations - translations).any()
 
-					# print(f"marker_ids: {marker_ids}")
-					self.publish_markers_tgt(marker_ids)
+				# 	# print(f"marker_ids: {marker_ids}")
+				# 	self.publish_markers_tgt(marker_ids)
 
-				# Text and markers_nav on the image
-				t_proc = time.time() - time_now		
-				cv2.putText(cv_image_gray, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
-				cv2.putText(cv_image_gray, f"t_proc: {t_proc:.4f}", (10, 60), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
+				# # Text and markers_nav on the image
+				# t_proc = time.time() - time_now		
+				# cv2.putText(cv_image_gray, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
+				# cv2.putText(cv_image_gray, f"t_proc: {t_proc:.4f}", (10, 60), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
 				# does not work in docker, thus the publishing
 				# cv2.imshow("ArUco Odometer", cv_image_gray)
@@ -428,6 +454,36 @@ class ArucoDetector(Node):
 
 				msg_image_processed = self.cv_bridge.cv2_to_imgmsg(cv_image_gray, "mono8")
 				self.publisher_image_aruco.publish(msg_image_processed)					
+
+	# ******************************************
+	def publish_vehicle_odometry(self):
+		# print("pub")
+		if (self.position is None):
+			return
+
+		print(f"self.position: {self.position}")
+
+		msg = VehicleOdometry()
+		msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+		# msg.timestamp_sample = int(self.get_clock().now().nanoseconds / 1000)
+
+		msg.pose_frame = VehicleOdometry.POSE_FRAME_NED
+
+		msg.position = numpy.array(self.position, dtype = numpy.float32)
+		# print(f"msg.position: {msg.position}")
+
+		# msg.q = numpy.array([float('nan'), float('nan'), float('nan'), float('nan')], dtype = numpy.float32)
+		msg.q = numpy.array([self.quad[0], self.quad[1], self.quad[2], self.quad[3]], dtype = numpy.float32)
+
+		msg.velocity = [float('nan'), float('nan'), float('nan')]
+
+		msg.angular_velocity = [float('nan'), float('nan'), float('nan')]
+
+		msg.position_variance = [float('nan'), float('nan'), float('nan')]
+		msg.orientation_variance = [float('nan'), float('nan'), float('nan')]
+		msg.velocity_variance = [float('nan'), float('nan'), float('nan')]
+
+		self.publisher_vehicle_visual_odometry.publish(msg)
 
 	# ******************************************
 	def publish_markers_nav(self, marker_ids_in):
